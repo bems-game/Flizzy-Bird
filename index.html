@@ -37,7 +37,7 @@
     .wrap {
       position: relative;
       width: min(560px, 100vw);
-      height: 100vh;
+      height: 100dvh; /* <<<===== PERUBAHAN DI SINI */
       margin: 0 auto;
       display: grid;
       grid-template-rows: auto 1fr auto;
@@ -657,7 +657,7 @@
     selMode.addEventListener('change', () => {
       mode = selMode.value
       P = MODES[mode]
-      document.getElementById('modeLabel').textContent = mode; // Pastikan ada elemen ini jika ingin dipakai
+      // document.getElementById('modeLabel').textContent = mode; // Pastikan ada elemen ini jika ingin dipakai
       resetRound()
       setState('menu')
     })
