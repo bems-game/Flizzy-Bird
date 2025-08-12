@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>bukan-FlappyBird — Offline</title>
+  <style>
+    :root {
+      --bg: #0b1026;
+      --panel: rgba(255,255,255,.9);
+      --ink: #111;
+      --accent: #20c997;
+      --danger: #ef4444;
+      --muted: rgba(0,0,0,.6);
+      --badge: rgba(0,0,0,.5);
+      --chip: rgba(255,255,255,.2);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111;
+      background: var(--bg);
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+    }
+    .wrap {
+      position: relative;
+      width: min(560px, 100vw);
+      height: 100vh;
+      margin: 0 auto;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+      padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+    }
+
+    /* HUD */
+    .hud {
+      position: absolute;
+      top: 10px; left: 12px; right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 3;
+      pointer-events: none;
+    }
+    .badges {
+      display: inline-flex; gap: 8px;
+      pointer-events: auto;
+    }
+    .badge {
+      background: var(--badge);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 14px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 10px rgba(0,0,0,.25);
+      user-select: none;
+    }
+    .badge .val { font-variant-numeric: tabular-nums; margin-left: 6px; }
+
+    .controls {
+      position: absolute;
+      right: 12px; bottom: 14px; left: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      z-index: 3;
+    }
+    button, select {
+      pointer-events: auto;
+      -webkit-user-select: none; user-select: none;
+      appearance: none;
+      border: none;
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 15px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      box-shadow: 0 6px 20px rgba(0,0,0,.22);
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary { background: #fff; }
+    .btn-danger { background: #fff3f3; color: #991b1b; }
+    .btn-sound.on { outline: 2px solid var(--accent); }
+
+    .modebar {
+      position: absolute; top: 52px; left: 12px;
+      display: inline-flex; gap: 8px; align-items: center;
+      z-index: 3; pointer-events: auto;
+      background: var(--chip);
+      color: #fff; backdrop-filter: blur(6px);
+      padding: 6px 10px; border-radius: 999px;
+    }
+    .modebar label { font-size: 13px; opacity: .9; margin-right: 4px; }
+    .modebar select { background: rgba(255,255,255,.9); padding: 6px 8px; border-radius: 10px; font-weight: 700; }
+
+    /* Canvas */
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 18px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.45);
+      background: linear-gradient(#74c0fc, #e7f5ff);
+    }
+
+    /* Overlay */
+    .overlay {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      z-index: 2; pointer-events: none;
+    }
+    .overlay .panel {
+      text-align: center;
+      background: rgba(255,255,255,.85);
+      padding: 16px 18px;
+      border-radius: 16px;
+      box-shadow: 0 10px 35px rgba(0,0,0,.25);
+      max-width: min(92vw, 520px);
+    }
+    .overlay h1 { margin: 0 0 6px; font-size: 22px; }
+    .overlay p { margin: 4px 0; color: #333; }
+    .overlay small { color: #555; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- HUD badges -->
+    <div class="hud">
+      <div class="badges">
+        <div class="badge">Skor <span id="score" class="val">0</span></div>
+        <div class="badge">Rekor <span id="best" class="val">0</span></div>
+        <div class="badge">Mode <span id="modeLabel" class="val">Normal</span></div>
+      </div>
+    </div>
+
+    <!-- Mode Switcher -->
+    <div class="modebar">
+      <label for="modeSel">Mode:</label>
+      <select id="modeSel" aria-label="Pilih Mode">
+        <option value="Mudah">Mudah</option>
+        <option value="Normal" selected>Normal</option>
+        <option value="Susah">Susah</option>
+      </select>
+    </div>
+
+    <!-- Canvas -->
+    <canvas id="game" width="480" height="800" aria-label="Game bukan-FlappyBird"></canvas>
+
+    <!-- Overlay Messages -->
+    <div id="overlay" class="overlay">
+      <div class="panel">
+        <h1 id="ov-title">bukan-FlappyBird</h1>
+        <p id="ov-msg">Tap/Klik/Spasi untuk kepak. Hindari pipa, lolos celah = +1.</p>
+        <small>Gunakan tombol di bawah: Mulai/Jeda, Ulang, Mode, Suara.</small>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button id="btnToggle" class="btn-primary">Mulai</button>
+      <button id="btnRestart" class="btn-danger">Ulang</button>
+      <button id="btnSound" class="btn-sound">Suara: On</button>
+    </div>
+  </div>
+
+  <script>
+  ;(() => {
+    'use strict'
+
+    // ====== World & Canvas ======
+    const WORLD_W = 480, WORLD_H = 800
+    const GROUND_H = 96
+    const GROUND_Y = WORLD_H - GROUND_H
+
+    const canvas = document.getElementById('game')
+    const ctx = canvas.getContext('2d')
+
+    // Hi-DPI rendering
+    function setupHiDPI() {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
+      canvas.width = Math.floor(WORLD_W * dpr)
+      canvas.height = Math.floor(WORLD_H * dpr)
+      canvas.style.aspectRatio = `${WORLD_W}/${WORLD_H}`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    setupHiDPI()
+    window.addEventListener('resize', setupHiDPI)
+
+    // ====== UI Elements ======
+    const elScore = document.getElementById('score')
+    const elBest  = document.getElementById('best')
+    const elModeLabel = document.getElementById('modeLabel')
+    const selMode = document.getElementById('modeSel')
+    const btnToggle = document.getElementById('btnToggle')
+    const btnRestart = document.getElementById('btnRestart')
+    const btnSound = document.getElementById('btnSound')
+    const overlay = document.getElementById('overlay')
+    const ovTitle = document.getElementById('ov-title')
+    const ovMsg = document.getElementById('ov-msg')
+
+    // ====== Settings & Persistence ======
+    const LS_BEST = 'bfb_highscore'
+    const LS_SOUND = 'bfb_sound'
+    const settings = {
+      sound: (localStorage.getItem(LS_SOUND) ?? 'on') === 'on'
+    }
+    function updateSoundButton() {
+      btnSound.textContent = `Suara: ${settings.sound ? 'On' : 'Off'}`
+      btnSound.classList.toggle('on', settings.sound)
+    }
+    updateSoundButton()
+
+    let best = Number(localStorage.getItem(LS_BEST) || 0)
+    elBest.textContent = best
+
+    // ====== Modes ======
+    const MODES = {
+      'Mudah':  { gravity: 1600, flap: 500, speed: 180, gap: 180, spawnMs: 1400 },
+      'Normal': { gravity: 1900, flap: 430, speed: 210, gap: 150, spawnMs: 1200 },
+      'Susah':  { gravity: 2200, flap: 420, speed: 240, gap: 130, spawnMs: 1000 },
+    }
+    let mode = 'Normal'
+    let P = MODES[mode]
+
+    // ====== Game State ======
+    let state = 'menu' // 'menu' | 'running' | 'paused' | 'over'
+    let score = 0
+    let lastT = performance.now()
+    let spawnTimer = 0
+
+    // Bird
+    const bird = { x: 140, y: WORLD_H/2, r: 18, vy: 0, flapTick: 0 }
+
+    // Pipes (pairs)
+    const pipes = [] // each: { x, w, topH, gapH, passed }
+
+    // Parallax clouds
+    const cloudsFar = []
+    const cloudsNear = []
+    function spawnCloud(list, yRange, speedRange, radiusRange, count) {
+      for (let i=0; i<count; i++) {
+        list.push({
+          x: Math.random() * WORLD_W,
+          y: yRange[0] + Math.random() * (yRange[1]-yRange[0]),
+          r: radiusRange[0] + Math.random() * (radiusRange[1]-radiusRange[0]),
+          v: speedRange[0] + Math.random() * (speedRange[1]-speedRange[0])
+        })
+      }
+    }
+    spawnCloud(cloudsFar, [40, 220], [8, 14], [22, 46], 6)
+    spawnCloud(cloudsNear, [80, 280], [16, 28], [28, 60], 5)
+
+    // ====== Audio (WebAudio) ======
+    let audioCtx = null
+    function ensureAudioCtx() {
+      if (!settings.sound) return null
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (!AC) return null
+        try { audioCtx = new AC() } catch(e) { audioCtx = null }
+      }
+      return audioCtx
+    }
+    function sfx(type) {
+      const ctxA = ensureAudioCtx()
+      if (!ctxA) return
+      const o = ctxA.createOscillator()
+      const g = ctxA.createGain()
+      o.connect(g); g.connect(ctxA.destination)
+      const now = ctxA.currentTime
+      if (type==='flap') {
+        o.type='square'; o.frequency.setValueAtTime(600, now)
+        o.frequency.exponentialRampToValueAtTime(300, now+0.1)
+        g.gain.setValueAtTime(0.12, now)
+        g.gain.exponentialRampToValueAtTime(0.001, now+0.12)
+        o.start(now); o.stop(now+0.15)
+      } else if (type==='score') {
+        o.type='triangle'; o.frequency.setValueAtTime(820, now)
+        o.frequency.linearRampToValueAtTime(1180, now+0.08)
+        g.gain.setValueAtTime(0.08, now)
+        g.gain.exponentialRampToValueAtTime(0.001, now+0.12)
+        o.start(now); o.stop(now+0.14)
+      } else if (type==='over') {
+        o.type='sawtooth'; o.frequency.setValueAtTime(200, now)
+        g.gain.setValueAtTime(0.16, now)
+        g.gain.exponentialRampToValueAtTime(0.001, now+0.4)
+        o.start(now); o.stop(now+0.45)
+      }
+    }
+
+    // Speech (voice ceria)
+    function say(text) {
+      if (!settings.sound) return
+      if (!('speechSynthesis' in window)) return
+      const u = new SpeechSynthesisUtterance(text)
+      u.lang = 'id-ID'
+      u.rate = 1.02
+      u.pitch = 1.1
+      window.speechSynthesis.speak(u)
+    }
+
+    // ====== Helpers ======
+    function clamp(v, a, b){ return Math.max(a, Math.min(b, v)) }
+    function randRange(a,b){ return a + Math.random()*(b-a) }
+    function circleRectColl(cx, cy, r, rx, ry, rw, rh) {
+      const nx = clamp(cx, rx, rx + rw)
+      const ny = clamp(cy, ry, ry + rh)
+      const dx = cx - nx, dy = cy - ny
+      return (dx*dx + dy*dy) < r*r
+    }
+
+    // ====== Game Core ======
+    function resetRound() {
+      score = 0
+      elScore.textContent = score
+      pipes.length = 0
+      spawnTimer = 0
+      bird.y = WORLD_H/2
+      bird.vy = 0
+      bird.flapTick = 0
+    }
+
+    function startGame() {
+      resetRound()
+      setState('running')
+    }
+
+    function setState(ns) {
+      state = ns
+      if (state === 'running') {
+        overlay.classList.add('hidden')
+        btnToggle.textContent = 'Jeda'
+      } else if (state === 'paused') {
+        ovTitle.textContent = 'Jeda'
+        ovMsg.textContent = 'Tap/Klik/Spasi untuk lanjut. Hindari pipa!'
+        overlay.classList.remove('hidden')
+        btnToggle.textContent = 'Lanjut'
+      } else if (state === 'over') {
+        ovTitle.textContent = 'Game Over'
+        ovMsg.textContent = `Skor kamu ${score}. Tekan Ulang untuk main lagi.`
+        overlay.classList.remove('hidden')
+        btnToggle.textContent = 'Mulai'
+      } else { // menu
+        ovTitle.textContent = 'bukan-FlappyBird'
+        ovMsg.textContent = 'Tap/Klik/Spasi untuk kepak. Hindari pipa, lolos celah = +1.'
+        overlay.classList.remove('hidden')
+        btnToggle.textContent = 'Mulai'
+      }
+    }
+
+    function gameOver() {
+      sfx('over')
+      if (score > best) {
+        best = score
+        localStorage.setItem(LS_BEST, String(best))
+        elBest.textContent = best
+      }
+      say(`Game over! Skor kamu ${score}. Coba lagi ya!`)
+      setState('over')
+    }
+
+    function spawnPipe() {
+      const w = 72
+      const gapH = P.gap
+      const centerY = randRange(180, GROUND_Y - 120)
+      const topH = clamp(centerY - gapH/2, 40, GROUND_Y - gapH - 40)
+      pipes.push({ x: WORLD_W + 10, w, topH, gapH, passed: false })
+    }
+
+    function update(dt) {
+      // Clouds
+      for (const c of cloudsFar) { c.x -= c.v * dt; if (c.x < -c.r*2) c.x = WORLD_W + c.r*2 }
+      for (const c of cloudsNear){ c.x -= c.v * dt; if (c.x < -c.r*2) c.x = WORLD_W + c.r*2 }
+
+      // Spawn pipes
+      spawnTimer += dt * 1000
+      while (spawnTimer >= P.spawnMs) {
+        spawnPipe()
+        spawnTimer -= P.spawnMs
+      }
+
+      // Move pipes & scoring
+      for (let i=0; i<pipes.length; i++) {
+        const p = pipes[i]
+        p.x -= P.speed * dt
+        if (!p.passed && (p.x + p.w) < (bird.x - bird.r)) {
+          p.passed = true
+          score += 1
+          elScore.textContent = score
+          sfx('score')
+          if (score && score % 10 === 0) say(`Mantap! Skor ${score}`)
+        }
+      }
+      // Cull pipes
+      while (pipes.length && (pipes[0].x + pipes[0].w) < -20) pipes.shift()
+
+      // Bird physics
+      bird.vy += P.gravity * dt
+      bird.y += bird.vy * dt
+      bird.y = clamp(bird.y, -100, WORLD_H + 200)
+      bird.flapTick = Math.max(0, bird.flapTick - dt)
+
+      // Ground collision
+      if (bird.y + bird.r >= GROUND_Y) {
+        bird.y = GROUND_Y - bird.r
+        gameOver(); return
+      }
+
+      // Pipes collision (top & bottom rects)
+      for (const p of pipes) {
+        const topRect = { x: p.x, y: 0, w: p.w, h: p.topH }
+        const botY = p.topH + p.gapH
+        const botRect = { x: p.x, y: botY, w: p.w, h: GROUND_Y - botY }
+        if (circleRectColl(bird.x, bird.y, bird.r, topRect.x, topRect.y, topRect.w, topRect.h) ||
+            circleRectColl(bird.x, bird.y, bird.r, botRect.x, botRect.y, botRect.w, botRect.h)) {
+          gameOver(); return
+        }
+      }
+
+      // Off-screen top
+      if (bird.y < -50) {
+        // Allow going slightly above then fall back; no game over here
+      }
+    }
+
+    // ====== Render ======
+    function drawBg() {
+      // Sky gradient
+      const g = ctx.createLinearGradient(0,0,0,WORLD_H)
+      g.addColorStop(0, '#74c0fc') // top sky
+      g.addColorStop(.7, '#a5d8ff')
+      g.addColorStop(1, '#e7f5ff')
+      ctx.fillStyle = g
+      ctx.fillRect(0,0,WORLD_W,WORLD_H)
+
+      // Far clouds
+      ctx.globalAlpha = 0.85
+      ctx.fillStyle = 'white'
+      for (const c of cloudsFar) {
+        drawCloud(c.x, c.y, c.r)
+      }
+      // Near clouds
+      ctx.globalAlpha = 0.95
+      for (const c of cloudsNear) {
+        drawCloud(c.x, c.y, c.r)
+      }
+      ctx.globalAlpha = 1
+
+      // Ground strip
+      ctx.fillStyle = '#a68b5b'
+      ctx.fillRect(0, GROUND_Y, WORLD_W, GROUND_H)
+      // Simple grass edge
+      ctx.fillStyle = '#37b24d'
+      ctx.fillRect(0, GROUND_Y-10, WORLD_W, 12)
+      // Scroll pattern
+      const t = (performance.now()/1000) * P.speed
+      const step = 28
+      ctx.fillStyle = '#8d6e3b'
+      for (let x = -((t*0.8)%step); x < WORLD_W + step; x += step) {
+        ctx.fillRect(x, GROUND_Y + 22, 16, 10)
+      }
+    }
+
+    function drawCloud(x, y, r) {
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI*2)
+      ctx.arc(x + r*0.8, y + r*0.2, r*0.9, 0, Math.PI*2)
+      ctx.arc(x - r*0.7, y + r*0.3, r*0.7, 0, Math.PI*2)
+      ctx.fill()
+    }
+
+    function drawPipes() {
+      for (const p of pipes) {
+        const x = p.x, w = p.w, topH = p.topH, gapH = p.gapH
+        // Body
+        ctx.fillStyle = '#37b24d'
+        ctx.fillRect(x, 0, w, topH)
+        ctx.fillRect(x, topH + gapH, w, GROUND_Y - (topH + gapH))
+        // Lip
+        ctx.fillStyle = '#2b8a3e'
+        ctx.fillRect(x-3, topH-14, w+6, 14)
+        ctx.fillRect(x-3, topH + gapH, w+6, 14)
+        // Shine
+        ctx.fillStyle = 'rgba(255,255,255,.25)'
+        ctx.fillRect(x+6, 0, 6, topH)
+        ctx.fillRect(x+6, topH + gapH, 6, GROUND_Y - (topH + gapH))
+      }
+    }
+
+    function drawBird() {
+      const tilt = clamp(bird.vy / 600, -0.6, 0.8)
+      ctx.save()
+      ctx.translate(bird.x, bird.y)
+      ctx.rotate(tilt)
+      // Body
+      ctx.fillStyle = '#ffd43b'
+      ctx.beginPath(); ctx.arc(0, 0, bird.r, 0, Math.PI*2); ctx.fill()
+      // Belly
+      ctx.fillStyle = '#fff3bf'
+      ctx.beginPath(); ctx.arc(2, 4, bird.r*0.65, 0, Math.PI*2); ctx.fill()
+      // Wing (simple flap)
+      const wingUp = bird.flapTick > 0
+      ctx.fillStyle = '#fab005'
+      ctx.beginPath()
+      const wy = wingUp ? -bird.r*0.4 : bird.r*0.2
+      ctx.moveTo(-4, wy)
+      ctx.lineTo(-bird.r*1.2, wy + (wingUp ? -10 : 10))
+      ctx.lineTo(8, wy + (wingUp ? -4 : 6))
+      ctx.closePath(); ctx.fill()
+      // Eye
+      ctx.fillStyle = '#fff'
+      ctx.beginPath(); ctx.arc(bird.r*0.35, -bird.r*0.25, bird.r*0.35, 0, Math.PI*2); ctx.fill()
+      ctx.fillStyle = '#111'
+      ctx.beginPath(); ctx.arc(bird.r*0.48, -bird.r*0.25, bird.r*0.15, 0, Math.PI*2); ctx.fill()
+      // Beak
+      ctx.fillStyle = '#ff922b'
+      ctx.beginPath()
+      ctx.moveTo(bird.r*0.9, 0)
+      ctx.lineTo(bird.r*1.5, bird.r*0.18)
+      ctx.lineTo(bird.r*0.9, bird.r*0.32)
+      ctx.closePath(); ctx.fill()
+      ctx.restore()
+    }
+
+    function render() {
+      drawBg()
+      drawPipes()
+      drawBird()
+    }
+
+    // ====== Input ======
+    function doFlap() {
+      if (state === 'over') return
+      if (state === 'menu') {
+        startGame()
+      }
+      if (state === 'paused') {
+        setState('running')
+      }
+      if (state === 'running') {
+        bird.vy = -P.flap
+        bird.flapTick = 0.12
+        sfx('flap')
+      }
+    }
+
+    // Pointer
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); doFlap()
+      ensureAudioCtx()?.resume?.()
+    }, { passive: false })
+
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') { e.preventDefault(); doFlap(); ensureAudioCtx()?.resume?.() }
+      if (e.code === 'KeyP') {
+        if (state === 'running') setState('paused')
+        else if (state === 'paused') setState('running')
+      }
+    })
+
+    // Visibility pause
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state === 'running') setState('paused')
+    })
+
+    // Buttons
+    btnToggle.addEventListener('click', () => {
+      if (state === 'menu' || state === 'over') startGame()
+      else if (state === 'running') setState('paused')
+      else if (state === 'paused') setState('running')
+      ensureAudioCtx()?.resume?.()
+    })
+
+    btnRestart.addEventListener('click', () => {
+      resetRound(); setState('menu')
+    })
+
+    btnSound.addEventListener('click', () => {
+      settings.sound = !settings.sound
+      localStorage.setItem(LS_SOUND, settings.sound ? 'on' : 'off')
+      updateSoundButton()
+      if (settings.sound) { ensureAudioCtx()?.resume?.(); sfx('score') }
+    })
+
+    selMode.addEventListener('change', () => {
+      mode = selMode.value
+      P = MODES[mode]
+      elModeLabel.textContent = mode
+      resetRound()
+      setState('menu')
+    })
+
+    // ====== Main Loop ======
+    function tick(t) {
+      const dt = Math.min(0.033, (t - lastT) / 1000)
+      lastT = t
+      if (state === 'running') update(dt)
+      render()
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+
+    // Init
+    setState('menu')
+  })()
+  </script>
+</body>
+</html>
